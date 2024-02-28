@@ -1,0 +1,191 @@
+---
+title: "Homework 5"
+author: "Shreyasi Tamhane, eid: syt333, GitHub Repo: "
+date: "2024-02-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results = 'hide', echo = FALSE, warning=FALSE, message=FALSE}
+# import libraries
+library(ggplot2)
+library(tidyverse)
+library(mosaic)
+library(kableExtra)
+# import datasets
+letter_freq <- read.csv("letter_frequencies.csv")
+```
+
+### Problem 1: Iron Bank
+
+```{r, echo=FALSE, results = 'hide'}
+illegal_trade_sim = do(100000)*nflip(n=2021, prob=0.024)
+sum(illegal_trade_sim >= 70) # p-val: 0.0023
+210/100000
+```
+
+**Null Hypothesis**
+
+The null hypothesis that we are testing is that securities trades from the Iron Bank are flagged at the same 2.4% baseline rate as that of other traders, over an extended period of time.
+
+**Test Statistic**
+
+Our test statistic is the number of trades flagged by the SEC algorithm.
+
+
+```{r, echo=FALSE}
+ggplot(illegal_trade_sim) + 
+  geom_histogram(aes(x=nflip), fill = "lavender", col = "burlywood", binwidth=1) + labs(title="Plot of the Number of Trades Flagged by the SEC Algorithm", subtitle="assuming that securities trades from the Iron Bank are flagged at the same 2.4% baseline rate\nas that of other traders, over an extended period of time")
+```
+
+**P-value**
+
+The p-value we have derived from this data is 0.0021, or 210 out of 100,000. This p-value is quite small, meaning that only a small part of the distribution is 70 tagged trades or higher.
+
+**Conclusion**
+
+While this could mean nothing, there is a good chance that there is something here that the SEC officials may need to look into.
+
+Thus, in this case, it seems that the null hypothesis that securities trades from the Iron Bank are flagged at the same 2.4% baseline rate as that of other traders, must be rejected. There is a high chance that suspicious activity may be occurring regarding the trades from the Iron Bank.
+
+### Problem 2: Health Inspections
+
+```{r, echo=FALSE, results = 'hide'}
+health_inspection_sim = do(100000)*nflip(n=50, prob=0.03)
+sum(health_inspection_sim >= 8) # p-val: 0.0001
+14/100000
+```
+
+**Null Hypothesis**
+
+The null hypothesis that we are testing is that on average, restaurants in the city are cited for health code violations at the same 3% baseline rate.
+
+**Test Statistic**
+
+Our test statistic is the number of health code violations given to Gourmet Bites.
+
+
+```{r, echo=FALSE}
+ggplot(health_inspection_sim) + 
+  geom_histogram(aes(x=nflip), fill = "lavender", col = "burlywood", binwidth=1) + labs(title="Plot of the Number of Health Code Violations Given to Gourmet Bites", subtitle="assuming that on average, restaurants in the city are cited for health code violations at the same 3% baseline rate")
+```
+
+**P-value**
+
+The p-value we have derived from this data is 0.00014, or 14 out of 100,000. This p-value is quite small, meaning that only a very small part of the distribution has 8 health code violations or higher.
+
+**Conclusion**
+
+As the p-value is very small, it seems that the null hypothesis that on average, restaurants in the city are cited for health code violations at the same 3% baseline rate, must be rejected. There is a high chance that the Health Department may have to take action as Gourmet Bites' rate of health code violations is significantly higher than the citywide average of 3%.
+
+### Problem 3: LLM Watermarking
+
+```{r, echo=FALSE, results = 'hide'}
+# null distribution
+brown_sent_txt <- readLines("brown_sentences.txt") 
+
+brown_sent <- tibble(Sentences = brown_sent_txt)
+
+calculate_observed_expected = function(sentence, freq_table) {
+  
+  # Ensure letter frequencies are normalized and sum to 1
+  freq_table$Probability = freq_table$Probability / sum(freq_table$Probability)
+  
+  # Remove non-letters and convert to uppercase
+  clean_sentence = gsub("[^A-Za-z]", "", sentence)
+  clean_sentence = toupper(clean_sentence)
+  
+  # Count the occurrences of each letter in the sentence
+  observed_counts = table(factor(strsplit(clean_sentence, "")[[1]], levels = freq_table$Letter))
+  
+  # Calculate expected counts
+  total_letters = sum(observed_counts)
+  expected_counts = total_letters * freq_table$Probability
+  
+  return(list(obs_counts = observed_counts, exp_counts = expected_counts))
+}
+
+brown_sent_null_distribution = numeric(nrow(brown_sent))
+
+for (i in 1:nrow(brown_sent)) {
+  
+  brown_sent_residuals <- calculate_observed_expected(brown_sent$Sentences[i], freq_table = letter_freq)
+  
+  chi_squared_stat <- sum((brown_sent_residuals$obs_counts - brown_sent_residuals$exp_counts)^2 / brown_sent_residuals$exp_counts)
+  
+  brown_sent_null_distribution[i] <- chi_squared_stat
+}
+
+brown_sent$Chi_Squared <- brown_sent_null_distribution
+
+```
+
+```{r, echo=FALSE, results = 'hide'}
+ggplot(brown_sent) +
+  geom_histogram(aes(x = Chi_Squared), fill = "lavender", col = "burlywood", binwidth=1)
+```
+
+```{r, echo=FALSE, results = 'hide'}
+test_sent <- c(
+  "She opened the book and started to read the first chapter, eagerly anticipating what might come next.",
+  "Despite the heavy rain, they decided to go for a long walk in the park, crossing the main avenue by the fountain in the center.",
+  "The museum’s new exhibit features ancient artifacts from various civilizations around the world.",
+  "He carefully examined the document, looking for any clues that might help solve the mystery.",
+  "The students gathered in the auditorium to listen to the guest speaker’s inspiring lecture.",
+  "Feeling vexed after an arduous and zany day at work, she hoped for a peaceful and quiet evening at home, cozying up after a quick dinner with some TV, or maybe a book on her upcoming visit to Auckland.",
+  "The chef demonstrated how to prepare a delicious meal using only locally sourced ingredients, focusing mainly on some excellent dinner recipes from Spain.",
+  "They watched the sunset from the hilltop, marveling at the beautiful array of colors in the sky.",
+  "The committee reviewed the proposal and provided many points of useful feedback to improve the project’s effectiveness.",
+  "Despite the challenges faced during the project, the team worked tirelessly to ensure its successful completion, resulting in a product that exceeded everyone’s expectations."
+)
+```
+
+```{r, echo=FALSE, results = 'hide'}
+test_sent <- tibble(Sentences = test_sent)
+
+test_sent_distribution = numeric(nrow(test_sent))
+
+for (i in 1:nrow(test_sent)) {
+  
+  test_sent_residuals <- calculate_observed_expected(test_sent$Sentences[i], freq_table = letter_freq)
+  
+  chi_squared_stat <- sum((test_sent_residuals$obs_counts - test_sent_residuals$exp_counts)^2 / test_sent_residuals$exp_counts)
+  
+  test_sent_distribution[i] <- chi_squared_stat
+}
+
+test_sent$Chi_Squared <- test_sent_distribution
+
+test_sent$pval <- sapply(test_sent_distribution, function(ChiSquare){
+  sum(brown_sent_null_distribution >= ChiSquare) / length(brown_sent_null_distribution)
+})
+```
+
+```{r, echo=FALSE, results = 'hide'}
+test_sent_pval <- test_sent %>%
+  select(pval)
+
+test_sent_pval <- test_sent_pval %>%
+  mutate(pval = round(pval, 3))
+
+test_sent_pval <- test_sent_pval %>%
+  mutate(Sentence = c(1:10))
+
+test_sent_pval <- test_sent_pval %>%
+  select(Sentence, pval)
+
+sentences_kable <- knitr::kable(test_sent_pval, col.names = c("Sentence Number", "P-value"), align = "l", caption = "English Sentence Letter Distribution")
+
+sentences_kable <- sentences_kable %>% 
+  kable_styling()
+
+```
+
+```{r, echo=FALSE}
+sentences_kable
+```
+
+The sentence that is watermarked by asking the LLM to subtly adjust its frequency distribution over letters, is sentence 6. We can tell this as it is the smallest p-value, thus rejecting the null distribution.  
